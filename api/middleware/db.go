@@ -22,6 +22,6 @@ func CopyMgoSession(s *mgo.Session) Adapter {
 }
 
 // DBFromContext retrieves mongo session from context.
-func DBFromContext(ctx context.Context) *mgo.Session {
+func MgoSessionFromContext(ctx context.Context) *mgo.Session {
 	return ctx.Value(dbKey).(*mgo.Session)
 }
