@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/globalsign/mgo"
+	mgo "gopkg.in/mgo.v2"
 )
 
 type key int

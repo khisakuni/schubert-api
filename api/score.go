@@ -2,11 +2,13 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
-	"github.com/khisakuni/schubert-api/api/middleware"
+	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+
+	"github.com/gorilla/mux"
+	"github.com/khisakuni/schubert-api/api/middleware"
 )
 
 // Score is model for score.
@@ -53,15 +55,54 @@ type Score struct {
 
 // ListScores lists all scores.
 func ListScores() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return appHandler(func(w http.ResponseWriter, r *http.Request) *apiError {
+		var scores []Score
+		session := middleware.MgoSessionFromContext(r.Context())
+		c := session.DB("schubert").C("scores")
+		if err := c.Find(nil).All(&scores); err != nil {
+			return &apiError{Code: 500, Message: "wtf", Error: err}
+		}
+
+		js, err := json.Marshal(scores)
+		if err != nil {
+			return internalServerError(err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write(js)
+		return nil
 	})
 }
 
 // GetScore fetches score by id.
 func GetScore() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return appHandler(func(w http.ResponseWriter, r *http.Request) *apiError {
+		vars := mux.Vars(r)
+		id := vars["id"]
+		if !bson.IsObjectIdHex(id) {
+			return badInputError("Invalid id.")
+		}
+
 		session := middleware.MgoSessionFromContext(r.Context())
-		fmt.Printf("Session from context >> %v", session)
+
+		var result Score
+		if err := session.DB("schubert").C("scores").FindId(bson.ObjectIdHex(id)).One(&result); err != nil {
+			if err.Error() == mgo.ErrNotFound.Error() {
+				return notFoundError(err)
+			}
+			return internalServerError(err)
+		}
+
+		js, err := json.Marshal(result)
+		if err != nil {
+			return internalServerError(err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write(js)
+		return nil
 	})
 }
 
@@ -74,13 +115,9 @@ func CreateScore() http.Handler {
 			return internalServerError(err)
 		}
 
-		// Create score
-		scoreID := bson.NewObjectId()
-		s.ID = scoreID
-
-		// Create sheets
+		s.ID = bson.NewObjectId()
 		for i := range s.Sheets {
-			s.Sheets[i].ScoreID = scoreID
+			s.Sheets[i].ScoreID = s.ID
 		}
 
 		session := middleware.MgoSessionFromContext(r.Context())

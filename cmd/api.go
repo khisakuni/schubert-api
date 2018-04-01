@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/globalsign/mgo"
+	mgo "gopkg.in/mgo.v2"
 
 	"github.com/gorilla/mux"
 	"github.com/khisakuni/schubert-api/api"
