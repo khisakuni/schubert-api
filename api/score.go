@@ -14,6 +14,7 @@ import (
 // Score is model for score.
 type Score struct {
 	ID     bson.ObjectId `json:"id" bson:"_id,omitempty"`
+	UserID bson.ObjectId `json:"userId" bson:"user_id,omitempty"`
 	Sheets []struct {
 		ScoreID bson.ObjectId `json:"scoreId" bson:"scoreId"`
 		ID      string        `json:"id" bson:"id"`
@@ -53,17 +54,27 @@ type Score struct {
 	}
 }
 
-// ListScores lists all scores.
+// ListScores lists all scores for user.
 func ListScores() http.Handler {
 	return appHandler(func(w http.ResponseWriter, r *http.Request) *apiError {
+		vars := mux.Vars(r)
+		userID := vars["userID"]
+		if !bson.IsObjectIdHex(userID) {
+			return badInputError("Invalid id.")
+		}
+
 		var scores []Score
 		session := middleware.MgoSessionFromContext(r.Context())
 		c := session.DB("schubert").C("scores")
-		if err := c.Find(nil).All(&scores); err != nil {
+		query := map[string]bson.ObjectId{"user_id": bson.ObjectIdHex(userID)}
+		if err := c.Find(query).All(&scores); err != nil {
 			return &apiError{Code: 500, Message: "wtf", Error: err}
 		}
 
-		js, err := json.Marshal(scores)
+		data := struct {
+			Data []Score `json:"data"`
+		}{Data: scores}
+		js, err := json.Marshal(data)
 		if err != nil {
 			return internalServerError(err)
 		}
@@ -75,7 +86,7 @@ func ListScores() http.Handler {
 	})
 }
 
-// GetScore fetches score by id.
+// GetScore fetches score by id for user.
 func GetScore() http.Handler {
 	return appHandler(func(w http.ResponseWriter, r *http.Request) *apiError {
 		vars := mux.Vars(r)
@@ -84,10 +95,16 @@ func GetScore() http.Handler {
 			return badInputError("Invalid id.")
 		}
 
+		userID := vars["userID"]
+		if !bson.IsObjectIdHex(userID) {
+			return badInputError("Invalid user id.")
+		}
+
 		session := middleware.MgoSessionFromContext(r.Context())
 
 		var result Score
-		if err := session.DB("schubert").C("scores").FindId(bson.ObjectIdHex(id)).One(&result); err != nil {
+		query := map[string]bson.ObjectId{"_id": bson.ObjectIdHex(id), "user_id": bson.ObjectIdHex(userID)}
+		if err := session.DB("schubert").C("scores").Find(query).One(&result); err != nil {
 			if err.Error() == mgo.ErrNotFound.Error() {
 				return notFoundError(err)
 			}
@@ -114,6 +131,8 @@ func CreateScore() http.Handler {
 		if err != nil {
 			return internalServerError(err)
 		}
+
+		// TODO: Validate presence of userId.
 
 		s.ID = bson.NewObjectId()
 		for i := range s.Sheets {
