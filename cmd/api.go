@@ -27,6 +27,7 @@ func RunAPI() {
 	r.Handle("/u/{userID}/scores/{id}", adapt(api.GetScore(), copyMgoSession(session))).Methods("GET")
 	r.Handle("/u/{userID}/scores", adapt(api.CreateScore(), copyMgoSession(session))).Methods("POST")
 	r.Handle("/u/{userID}/scores/{id}", adapt(api.UpdateScore(), copyMgoSession(session))).Methods("PUT")
+	r.Handle("/u/{userID}/scores/{id}", adapt(api.DeleteScore(), copyMgoSession(session))).Methods("DELETE")
 
 	// User routes
 	r.Handle("/users", adapt(api.CreateUser(), copyMgoSession(session))).Methods("POST")

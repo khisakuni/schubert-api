@@ -19,39 +19,39 @@ type Score struct {
 		ScoreID bson.ObjectId `json:"scoreId" bson:"scoreId"`
 		ID      string        `json:"id" bson:"id"`
 		Index   int           `json:"index" bson:"index"`
-	}
+	} `json:"sheets"`
 	Staves []struct {
 		SheetID string `json:"sheetId" bson:"sheetId"`
 		ID      string `json:"id"`
 		Index   int    `json:"index"`
-	}
+	} `json:"staves"`
 	Measures []struct {
 		StaffID string `json:"staffId" bson:"staffId"`
 		ID      string `json:"id"`
 		Index   int    `json:"index"`
-	}
+	} `json:"measures"`
 	Voices []struct {
 		MeasureID string `json:"measureId" bson:"measureId"`
 		ID        string `json:"id"`
 		Index     int    `json:"index"`
-	}
+	} `json:"voices"`
 	Notes []struct {
 		VoiceID  string `json:"voiceId" bson:"voiceId"`
 		ID       string `json:"id"`
 		Index    int    `json:"index"`
 		Value    string `json:"value"`
 		Duration string `json:"duration"`
-	}
+	} `json:"notes"`
 	TimeSignatures []struct {
 		MeasureID string `json:"measureId" bson:"measureId"`
 		ID        string `json:"id"`
 		Index     int    `json:"index"`
-	}
+	} `json:"timeSignatures"`
 	Clefs []struct {
 		MeasureID string `json:"measureId" bson:"measureId"`
 		ID        string `json:"id"`
 		Index     int    `json:"index"`
-	}
+	} `json:"clefs"`
 }
 
 // ListScores lists all scores for user.
@@ -111,7 +111,10 @@ func GetScore() http.Handler {
 			return internalServerError(err)
 		}
 
-		js, err := json.Marshal(result)
+		data := struct {
+			Data Score `json:"data"`
+		}{Data: result}
+		js, err := json.Marshal(data)
 		if err != nil {
 			return internalServerError(err)
 		}
@@ -126,6 +129,12 @@ func GetScore() http.Handler {
 // CreateScore creates a score.
 func CreateScore() http.Handler {
 	return appHandler(func(w http.ResponseWriter, r *http.Request) *apiError {
+		vars := mux.Vars(r)
+		userID := vars["userID"]
+		if !bson.IsObjectIdHex(userID) {
+			return badInputError("Invalid user id.")
+		}
+
 		var s Score
 		err := json.NewDecoder(r.Body).Decode(&s)
 		if err != nil {
@@ -151,7 +160,7 @@ func CreateScore() http.Handler {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(201)
+		w.WriteHeader(http.StatusCreated)
 		w.Write(js)
 		return nil
 	})
@@ -160,5 +169,31 @@ func CreateScore() http.Handler {
 // UpdateScore updates a score by id.
 func UpdateScore() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	})
+}
+
+// DeleteScore deletes a score by ID.
+func DeleteScore() http.Handler {
+	return appHandler(func(w http.ResponseWriter, r *http.Request) *apiError {
+		vars := mux.Vars(r)
+		userID := vars["userID"]
+		if !bson.IsObjectIdHex(userID) {
+			return badInputError("Invalid user id.")
+		}
+
+		id := vars["id"]
+		if !bson.IsObjectIdHex(id) {
+			return badInputError("Invalid id.")
+		}
+
+		session := middleware.MgoSessionFromContext(r.Context())
+		err := session.DB("schubert").C("scores").RemoveId(bson.ObjectIdHex(id))
+		if err != nil {
+			return internalServerError(err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		return nil
 	})
 }
